@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition Web App</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Face Recognition</h1>
+    <button onclick="toggleWebcam()"class="button-64"><span class="text">Start</span></button>
+    <button onclick="refreshPage()">Recognize Again</button> 
+    <div id="result"></div>
+    <canvas id="webcamCanvas" width="640" height="480" style="display: none; border: 2px solid red;"></canvas>
+    <div id="recognizedName"></div>
+    <!-- <button onclick="toggleWebcam()"class="button-64"><span class="text">Start</span></button> -->
+    <script>
+        let videoStream;
+        let video;
+        let canvas;
+        let recognizedNameDiv;
+        let recognizing = false;
+
+        async function toggleWebcam() {
+            if (recognizing) {
+                stopWebcam();
+            } else {
+                startWebcam();
+            }
+        }
+
+        async function startWebcam() {
+            try {
+                await fetch('/load_encodings');
+
+                videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video = document.createElement('video');
+                video.srcObject = videoStream;
+                video.autoplay = true;
+                document.body.appendChild(video);
+
+                canvas = document.getElementById('webcamCanvas');
+                recognizedNameDiv = document.getElementById('recognizedName');
+
+                setInterval(() => {
+                    captureAndRecognize();
+                }, 10000); // rec interval
+
+                recognizing = true;
+                document.querySelector('button').innerText = 'Done';
+            } catch (error) {
+                console.error('Error accessing webcam:', error);
+            }
+        }
+        function refreshPage(){location.reload();}
+        function stopWebcam() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                video.remove();
+                 clearInterval();
+                recognizing = false;
+                document.querySelector('button').innerText = 'Start';
+            }
+        }
+
+        // async function recognizeAgain() {
+        //      stopWebcam();
+        //     startWebcam();
+        // }
+
+        async function captureAndRecognize() {
+            if (!videoStream) {
+                console.error('Webcam not started.');
+                return;
+            }
+
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = canvas.toDataURL('image/jpeg');
+
+            const response = await fetch('/recognize', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ image: imageData }),
+            });
+
+            const data = await response.json();
+
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '';
+
+            data.forEach(person => {
+                resultDiv.innerHTML += `<p>Name: ${person.name} </p>`;
+                
+            });
+
+            // Display recognized name under the canvas
+            //recognizedNameDiv.innerHTML = data.length > 0 ? `CLASS: ${data[0].name}` : 'No match found';
+        }
+    </script>
+
+</body>
+</html>
